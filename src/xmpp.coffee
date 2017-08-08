@@ -11,7 +11,7 @@ class XmppBot extends Adapter
   joined: []
 
   constructor: ( robot ) ->
-    @robot = robot
+    robot = robot
 
     # Flag to log a warning message about group chat configuration only once
     @anonymousGroupChatWarningLogged = false
@@ -41,7 +41,7 @@ class XmppBot extends Adapter
       disallowTLS: process.env.HUBOT_XMPP_DISALLOW_TLS
       pmAddPrefix: process.env.HUBOT_XMPP_PM_ADD_PREFIX
 
-    @robot.logger.info util.inspect(options)
+    robot.logger.info util.inspect(options)
     options.password = process.env.HUBOT_XMPP_PASSWORD
 
     @options = options
@@ -54,7 +54,7 @@ class XmppBot extends Adapter
 
     @reconnectTryCount += 1
     if @reconnectTryCount > options.reconnectTry
-      @robot.logger.error 'Unable to reconnect to jabber server dying.'
+      robot.logger.error 'Unable to reconnect to jabber server dying.'
       process.exit 1
 
     @client.removeListener 'error', @.error
@@ -90,23 +90,23 @@ class XmppBot extends Adapter
     @client.on 'stanza', @.read
 
     @client.on 'end', () =>
-      @robot.logger.info 'Connection closed, attempting to reconnect'
+      robot.logger.info 'Connection closed, attempting to reconnect'
       @reconnect()
 
   error: (error) =>
-      @robot.logger.error "Received error #{error.toString()}"
+      robot.logger.error "Received error #{error.toString()}"
 
   online: =>
-    @robot.logger.info 'Hubot XMPP client online'
+    robot.logger.info 'Hubot XMPP client online'
 
     # Setup keepalive
     @client.connection.socket.setTimeout 0
     @client.connection.socket.setKeepAlive true, @options.keepaliveInterval
 
     presence = new Stanza 'presence'
-    presence.c('nick', xmlns: 'http://jabber.org/protocol/nick').t(@robot.name)
+    presence.c('nick', xmlns: 'http://jabber.org/protocol/nick').t(robot.name)
     @client.send presence
-    @robot.logger.info 'Hubot XMPP sent initial presence'
+    robot.logger.info 'Hubot XMPP sent initial presence'
 
     @joinRoom room for room in @options.rooms
 
@@ -118,7 +118,7 @@ class XmppBot extends Adapter
     ping = new Stanza('iq', type: 'get', id: @currentIqId++)
     ping.c('ping', xmlns: 'urn:xmpp:ping')
 
-    @robot.logger.debug "[sending ping] #{ping}"
+    robot.logger.debug "[sending ping] #{ping}"
     @client.send ping
 
   parseRooms: (items) ->
@@ -133,12 +133,12 @@ class XmppBot extends Adapter
   # XMPP Joining a room - http://xmpp.org/extensions/xep-0045.html#enter-muc
   joinRoom: (room) ->
     @client.send do =>
-      @robot.logger.debug "Joining #{room.jid}/#{@robot.name}"
+      robot.logger.debug "Joining #{room.jid}/#{robot.name}"
 
       # prevent the server from confusing us with old messages
       # and it seems that servers don't reliably support maxchars
       # or zero values
-      el = new Stanza('presence', to: "#{room.jid}/#{@robot.name}")
+      el = new Stanza('presence', to: "#{room.jid}/#{robot.name}")
       x = el.c('x', xmlns: 'http://jabber.org/protocol/muc')
       x.c('history', seconds: 1 )
 
@@ -153,7 +153,7 @@ class XmppBot extends Adapter
         to: room.jid
         type: 'groupchat'
       }
-      @robot.logger.info "Joining #{room.jid} with #{room_id}"
+      robot.logger.info "Joining #{room.jid} with #{room_id}"
       @joining[room_id] = room.jid
       @client.send new Stanza('message', params).c('body').t(room_id)
 
@@ -165,10 +165,10 @@ class XmppBot extends Adapter
         @options.rooms.splice index, 1
 
     @client.send do =>
-      @robot.logger.debug "Leaving #{room.jid}/#{@robot.name}"
+      robot.logger.debug "Leaving #{room.jid}/#{robot.name}"
 
       return new Stanza('presence',
-        to: "#{room.jid}/#{@robot.name}",
+        to: "#{room.jid}/#{robot.name}",
         type: 'unavailable')
 
   # Send query for users in the room and once the server response is parsed,
@@ -184,7 +184,7 @@ class XmppBot extends Adapter
 
     # http://xmpp.org/extensions/xep-0045.html#disco-roomitems
     @client.send do =>
-      @robot.logger.debug "Fetching users in the room #{room.jid}"
+      robot.logger.debug "Fetching users in the room #{room.jid}"
       message = new Stanza('iq',
         from : @options.username,
         id: requestId,
@@ -200,7 +200,7 @@ class XmppBot extends Adapter
   # XMPP invite to a room, directly - http://xmpp.org/extensions/xep-0249.html
   sendInvite: (room, invitee, reason) ->
     @client.send do =>
-      @robot.logger.debug "Inviting #{invitee} to #{room.jid}"
+      robot.logger.debug "Inviting #{invitee} to #{room.jid}"
       message = new Stanza('message',
         to : invitee)
       message.c('x',
@@ -211,7 +211,7 @@ class XmppBot extends Adapter
 
   read: (stanza) =>
     if stanza.attrs.type is 'error'
-      @robot.logger.error '[xmpp error]' + stanza
+      robot.logger.error '[xmpp error]' + stanza
       return
 
     switch stanza.name
@@ -223,7 +223,7 @@ class XmppBot extends Adapter
         @readIq stanza
 
   readIq: (stanza) =>
-    @robot.logger.debug "[received iq] #{stanza}"
+    robot.logger.debug "[received iq] #{stanza}"
 
     # Some servers use iq pings to make sure the client is still functional.
     # We need to reply or we'll get kicked out of rooms we've joined.
@@ -234,7 +234,7 @@ class XmppBot extends Adapter
         type: 'result'
         id: stanza.attrs.id)
 
-      @robot.logger.debug "[sending pong] #{pong}"
+      robot.logger.debug "[sending pong] #{pong}"
       @client.send pong
     else if ((stanza.attrs.id?.startsWith 'get_users_in_room') && stanza.children[0].children)
       roomJID = stanza.attrs.from
@@ -242,7 +242,7 @@ class XmppBot extends Adapter
 
       # Note that this contains usernames and NOT the full user JID.
       usersInRoom = (item.attrs.name for item in userItems)
-      @robot.logger.debug "[users in room] #{roomJID} has #{usersInRoom}"
+      robot.logger.debug "[users in room] #{roomJID} has #{usersInRoom}"
 
       @emit "completedRequest#{stanza.attrs.id}", usersInRoom
 
@@ -260,7 +260,7 @@ class XmppBot extends Adapter
 
     # check if this is a join guid and if so start accepting messages
     if process.env.HUBOT_XMPP_UUID_ON_JOIN? and message of @joining
-      @robot.logger.info "Now accepting messages from #{@joining[message]}"
+      robot.logger.info "Now accepting messages from #{@joining[message]}"
       @joined.push @joining[message]
 
     if stanza.attrs.type == 'groupchat'
@@ -268,7 +268,7 @@ class XmppBot extends Adapter
       [room, user] = from.split '/'
 
       # ignore our own messages in rooms or messaged without user part
-      return if user is undefined or user == "" or user == @robot.name
+      return if user is undefined or user == "" or user == robot.name
 
       # Convert the room JID to private JID if we have one
       privateChatJID = @roomToPrivateJID[from]
@@ -284,9 +284,9 @@ class XmppBot extends Adapter
       privateChatJID = from
       # For private messages, make the commands work even when they are not prefixed with hubot name or alias
       if @options.pmAddPrefix and
-          message.slice(0, @robot.name.length).toLowerCase() != @robot.name.toLowerCase() and
+          message.slice(0, robot.name.length).toLowerCase() != robot.name.toLowerCase() and
           message.slice(0, process.env.HUBOT_ALIAS?.length).toLowerCase() != process.env.HUBOT_ALIAS?.toLowerCase()
-        message = "#{@robot.name} #{message}"
+        message = "#{robot.name} #{message}"
 
     # note that 'user' isn't a full JID in case of group chat,
     # just the local user part
@@ -294,7 +294,7 @@ class XmppBot extends Adapter
     # as two users could have the same resource in two different rooms.
     # I leave it as-is for backward compatiblity. A better idea would
     # be to use the full groupchat JID.
-    user = @robot.brain.userForId user
+    user = robot.brain.userForId user
     user.type = stanza.attrs.type
     user.room = room
     user.privateChatJID = privateChatJID if privateChatJID
@@ -302,7 +302,7 @@ class XmppBot extends Adapter
     # only process persistent chant messages if we have matched a join
     return if process.env.HUBOT_XMPP_UUID_ON_JOIN? and stanza.attrs.type == 'groupchat' and user.room not in @joined
 
-    @robot.logger.debug "Received message: #{message} in room: #{user.room}, from: #{user.name}. Private chat JID is #{user.privateChatJID}"
+    robot.logger.debug "Received message: #{message} in room: #{user.room}, from: #{user.name}. Private chat JID is #{user.privateChatJID}"
 
     @receive new TextMessage(user, message)
 
@@ -317,7 +317,7 @@ class XmppBot extends Adapter
 
     switch stanza.attrs.type
       when 'subscribe'
-        @robot.logger.debug "#{stanza.attrs.from} subscribed to me"
+        robot.logger.debug "#{stanza.attrs.from} subscribed to me"
 
         @client.send new Stanza('presence',
             from: stanza.attrs.to
@@ -326,7 +326,7 @@ class XmppBot extends Adapter
             type: 'subscribed'
         )
       when 'probe'
-        @robot.logger.debug "#{stanza.attrs.from} probed me"
+        robot.logger.debug "#{stanza.attrs.from} probed me"
 
         @client.send new Stanza('presence',
             from: stanza.attrs.to
@@ -335,8 +335,8 @@ class XmppBot extends Adapter
         )
       when 'available'
         # If the presence is from us, track that.
-        if fromJID.resource is @robot.name or
-           stanza.getChild?('nick')?.getText?() is @robot.name
+        if fromJID.resource is robot.name or
+           stanza.getChild?('nick')?.getText?() is robot.name
           @heardOwnPresence = true
           return
 
@@ -354,11 +354,11 @@ class XmppBot extends Adapter
         # and the brain initial load.
         # See https://github.com/github/hubot/issues/619
         @roomToPrivateJID[fromJID.toString()] = privateChatJID?.toString()
-        @robot.logger.debug "Available received from #{fromJID.toString()} in room #{room} and private chat jid is #{privateChatJID?.toString()}"
+        robot.logger.debug "Available received from #{fromJID.toString()} in room #{room} and private chat jid is #{privateChatJID?.toString()}"
 
         # Use the resource part from the room jid as this
         # is most likely the user's name
-        user = @robot.brain.userForId(fromJID.resource,
+        user = robot.brain.userForId(fromJID.resource,
           room: room,
           jid: fromJID.toString(),
           privateChatJID: privateChatJID?.toString())
@@ -377,9 +377,9 @@ class XmppBot extends Adapter
         # ignore our own messages in rooms
         return if user == @options.username
 
-        @robot.logger.debug "Unavailable received from #{user} in room #{room}"
+        robot.logger.debug "Unavailable received from #{user} in room #{room}"
 
-        user = @robot.brain.userForId user, room: room
+        user = robot.brain.userForId user, room: room
         @receive new LeaveMessage(user)
 
   # Accept a stanza from a group chat
@@ -397,7 +397,7 @@ class XmppBot extends Adapter
 
     unless privateJID
       unless @anonymousGroupChatWarningLogged
-        @robot.logger.warning "Could not get private JID from group chat. Make sure the server is configured to broadcast real jid for groupchat (see http://xmpp.org/extensions/xep-0045.html#enter-nonanon)"
+        robot.logger.warning "Could not get private JID from group chat. Make sure the server is configured to broadcast real jid for groupchat (see http://xmpp.org/extensions/xep-0045.html#enter-nonanon)"
         @anonymousGroupChatWarningLogged = true
       return null
 
@@ -411,7 +411,7 @@ class XmppBot extends Adapter
 
   send: (envelope, messages...) ->
     for msg in messages
-      @robot.logger.debug "Sending to #{envelope.room}: #{msg}"
+      robot.logger.debug "Sending to #{envelope.room}: #{msg}"
 
       to = envelope.room
       if envelope.user?.type in ['direct', 'chat']
@@ -463,7 +463,7 @@ class XmppBot extends Adapter
     @client.send message
 
   offline: =>
-    @robot.logger.debug "Received offline event"
+    robot.logger.debug "Received offline event"
 
   checkCanStart: =>
     if not process.env.HUBOT_XMPP_USERNAME
